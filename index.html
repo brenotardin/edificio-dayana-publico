@@ -6,6 +6,7 @@
   <title>Edifício Dayana – Prestação de Contas</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     html { scroll-behavior: smooth; }
     ::-webkit-scrollbar { height: 4px; }
@@ -282,6 +283,25 @@
     </div>
   </div>
 
+  <!-- TEMPLATE PARA DOWNLOAD (off-screen, renderizado por html2canvas) -->
+  <div id="dlTemplate" style="position:fixed;left:-9999px;top:0;width:580px;background:#fff;padding:40px 48px;font-family:Arial,Helvetica,sans-serif;font-size:13.5px;color:#111;line-height:1.75;box-sizing:border-box;">
+    <p id="dlTitle" style="font-weight:bold;font-size:15px;margin:0 0 2px;"></p>
+    <p id="dlSubtitle" style="font-weight:bold;font-size:13.5px;margin:0 0 18px;"></p>
+    <div id="dlGasLines" style="margin-bottom:20px;"></div>
+    <hr style="border:none;border-top:1px solid #bbb;margin:0 0 14px;">
+    <p style="font-weight:bold;margin:0 0 10px;">CONTAS GERAIS:</p>
+    <div id="dlContas" style="margin-bottom:6px;"></div>
+    <p id="dlTotal" style="font-weight:bold;margin:14px 0 20px;"></p>
+    <hr style="border:none;border-top:1px solid #bbb;margin:0 0 14px;">
+    <p style="font-weight:bold;margin:0 0 10px;">TOTAL POR APTO:</p>
+    <div id="dlAptLines" style="margin-bottom:20px;"></div>
+    <hr style="border:none;border-top:1px solid #bbb;margin:0 0 14px;">
+    <p style="margin:0 0 3px;">Prazo de pagamento: Todo dia 10</p>
+    <p style="margin:0 0 3px;"><b>PIX:</b> 37667327734 – JOSE MARCOS DARDENGO</p>
+    <p style="margin:0 0 3px;">Enviar comprovante de pagamento para:</p>
+    <p style="margin:0;">(027) 99939-7717 – Breno 402</p>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://bgkgndbohpkvmvienqrs.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_cb5-BWO8mo2pJ6bmEptiRg_YPiWkMkb';
@@ -302,6 +322,7 @@
     let adminExpanded = false;
     let isAdmin = false;
     let editingNoticeId = null;
+    let lastRender = null;
 
     function fmt(v) {
       return Number(v).toFixed(2).replace('.', ',');
@@ -385,6 +406,7 @@
     // ─── RENDERIZAÇÃO ─────────────────────────────────────────────────────────
 
     function render(month, gasData, transactions, balances) {
+      lastRender = { month, gasData, transactions };
       const agua = num(month.agua_total);
       const energia = num(month.energia_total);
 
@@ -574,9 +596,14 @@
           <div class="px-5 py-4">${saldoHtml}</div>
         </div>
 
-        <p class="text-center text-gray-400 text-xs pb-6">
-          Edifício Dayana · Síndico: Breno (Apt 402) · (027) 99939-7717
-        </p>
+        <div class="flex flex-col items-center gap-2 pb-6">
+          <button id="btnDownload" onclick="generateDownload()"
+                  class="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-xl text-sm font-semibold hover:bg-gray-700 active:scale-95 transition-all shadow-sm">
+            ⬇ Baixar Resumo do Mês
+          </button>
+          <p class="text-gray-400 text-xs">Salva como imagem PNG · ideal para enviar no WhatsApp</p>
+          <p class="text-gray-400 text-xs mt-1">Edifício Dayana · Síndico: Breno (Apt 402) · (027) 99939-7717</p>
+        </div>
       `;
     }
 
@@ -943,6 +970,83 @@
       } else {
         await loadNotices();
         await loadNoticeAdmin();
+      }
+    }
+
+    // ─── DOWNLOAD RESUMO ─────────────────────────────────────────────────────
+
+    async function generateDownload() {
+      if (!lastRender) return;
+      const { month, gasData } = lastRender;
+
+      const agua    = num(month.agua_total);
+      const energia = num(month.energia_total);
+      const aguaLiquida = agua === 0 ? 0 : agua - DESCONTO_AGUA;
+      const aguaApt     = aguaLiquida / N;
+      const energiaApt  = energia / N;
+      const faxinaApt   = FAXINA / N;
+      const totalComum  = aguaApt + energiaApt + faxinaApt + FUNDO;
+
+      const gasMap = {};
+      gasData.forEach(g => { gasMap[g.apto] = g; });
+
+      const dataLeitura = month.data_leitura
+        ? new Date(month.data_leitura + 'T12:00:00').toLocaleDateString('pt-BR')
+        : '—';
+
+      document.getElementById('dlTitle').textContent =
+        `EDIFÍCIO DAYANA – ${month.month_name.toUpperCase()} DE ${month.year}`;
+      document.getElementById('dlSubtitle').textContent =
+        `LEITURA DO GÁS FEITA EM ${dataLeitura}`;
+
+      document.getElementById('dlGasLines').innerHTML = APTS.map(apt => {
+        if (apt === '202') return `<p style="margin:0;font-family:'Courier New',monospace;">202------------------------------------------------</p>`;
+        const g = gasMap[apt];
+        if (!g) return `<p style="margin:0;font-family:'Courier New',monospace;">${apt} – sem dados</p>`;
+        return `<p style="margin:0;font-family:'Courier New',monospace;">${apt} – ${g.consumo} m³ x 2,5 x R$ 9,5 = <b>R$ ${fmt(g.valor_gas)}</b></p>`;
+      }).join('');
+
+      const aguaLine = agua === 0
+        ? `<p style="margin:0 0 3px;">Água – R$ 0,00 : 7 = <b>R$ 0,00</b></p>`
+        : `<p style="margin:0 0 3px;">Água – R$ ${fmt(agua)} – R$ 70,00 (aluguel) = R$ ${fmt(aguaLiquida)} : 7 = <b>R$ ${fmt(aguaApt)}</b></p>`;
+
+      document.getElementById('dlContas').innerHTML = `
+        ${aguaLine}
+        <p style="margin:0 0 3px;">Energia – R$ ${fmt(energia)} : 7 = <b>R$ ${fmt(energiaApt)}</b></p>
+        <p style="margin:0 0 3px;">Faxina – R$ 266,00 : 7 = <b>R$ 38,00</b></p>
+        <p style="margin:0;">Fundo – <b>R$ 25,00</b></p>
+      `;
+
+      document.getElementById('dlTotal').textContent = `TOTAL = R$ ${fmt(totalComum)}`;
+
+      document.getElementById('dlAptLines').innerHTML = APTS.map(apt => {
+        const g = gasMap[apt];
+        const gasVal = apt === '202' ? 0 : (g ? num(g.valor_gas) : 0);
+        const total = totalComum + gasVal;
+        return `<p style="margin:0 0 3px;font-family:'Courier New',monospace;">${apt} – <b>R$ ${fmt(total)}</b></p>`;
+      }).join('');
+
+      const btn = document.getElementById('btnDownload');
+      btn.textContent = 'Gerando imagem...';
+      btn.disabled = true;
+
+      try {
+        const canvas = await html2canvas(document.getElementById('dlTemplate'), {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          logging: false
+        });
+        const nomeMes = month.month_name.toLowerCase()
+          .replace(/ç/g,'c').replace(/ã/g,'a').replace(/á/g,'a')
+          .replace(/é/g,'e').replace(/ê/g,'e').replace(/ó/g,'o');
+        const link = document.createElement('a');
+        link.download = `dayana-${nomeMes}-${month.year}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } finally {
+        btn.textContent = '⬇ Baixar Resumo do Mês';
+        btn.disabled = false;
       }
     }
 
