@@ -268,6 +268,7 @@
     let currentMonthId = null;
     let tipoLancamento = 'gasto';
     let adminExpanded = false;
+    let isAdmin = false;
 
     function fmt(v) {
       return Number(v).toFixed(2).replace('.', ',');
@@ -293,6 +294,9 @@
         return;
       }
       months = data || [];
+      const { data: { session } } = await sb.auth.getSession();
+      isAdmin = !!session;
+      if (isAdmin) document.getElementById('adminPanel').classList.remove('hidden');
       renderTabs();
       if (months.length > 0) {
         await selectMonth(months[months.length - 1].id);
@@ -418,11 +422,14 @@
         ? '<p class="text-gray-400 text-sm italic py-2">Nenhum gasto registrado neste mês.</p>'
         : gastos.map(t =>
             `<div class="flex justify-between items-start py-2.5 border-b border-gray-50 last:border-0">
-               <div>
+               <div class="flex-1">
                  <p class="text-sm text-gray-700">${t.description}</p>
                  <p class="text-xs text-gray-400">${new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                </div>
-               <span class="text-sm font-semibold text-red-500 ml-4 whitespace-nowrap">– R$ ${fmt(num(t.value))}</span>
+               <div class="flex items-center gap-3 ml-4">
+                 <span class="text-sm font-semibold text-red-500 whitespace-nowrap">– R$ ${fmt(num(t.value))}</span>
+                 ${isAdmin ? `<button onclick="deleteTransaction('${t.id}')" class="text-gray-300 hover:text-red-500 transition-colors text-base leading-none" title="Apagar lançamento">✕</button>` : ''}
+               </div>
              </div>`
           ).join('') +
           (gastos.length > 1
@@ -442,11 +449,14 @@
 
       const txEntradasHtml = entradas.map(t =>
             `<div class="flex justify-between items-start py-2.5 border-b border-gray-50 last:border-0">
-               <div>
+               <div class="flex-1">
                  <p class="text-sm text-gray-700">${t.description}</p>
                  <p class="text-xs text-gray-400">${new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                </div>
-               <span class="text-sm font-semibold text-green-600 ml-4 whitespace-nowrap">+ R$ ${fmt(num(t.value))}</span>
+               <div class="flex items-center gap-3 ml-4">
+                 <span class="text-sm font-semibold text-green-600 whitespace-nowrap">+ R$ ${fmt(num(t.value))}</span>
+                 ${isAdmin ? `<button onclick="deleteTransaction('${t.id}')" class="text-gray-300 hover:text-red-500 transition-colors text-base leading-none" title="Apagar lançamento">✕</button>` : ''}
+               </div>
              </div>`
           ).join('');
 
@@ -581,7 +591,9 @@
     });
 
     function showAdminPanel() {
+      isAdmin = true;
       document.getElementById('adminPanel').classList.remove('hidden');
+      if (currentMonthId) selectMonth(currentMonthId);
     }
 
     function toggleAdminExpand() {
@@ -592,10 +604,12 @@
 
     async function adminLogout() {
       await sb.auth.signOut();
+      isAdmin = false;
       document.getElementById('adminPanel').classList.add('hidden');
       adminExpanded = false;
       document.getElementById('adminBody').classList.add('hidden');
       document.getElementById('btnExpand').textContent = '▲ Abrir';
+      if (currentMonthId) selectMonth(currentMonthId);
     }
 
     // ─── ABAS DO PAINEL ──────────────────────────────────────────────────────
@@ -752,6 +766,18 @@
         document.getElementById('saldoValue').value = '';
         document.getElementById('saldoNote').value = '';
         if (currentMonthId) selectMonth(currentMonthId);
+      }
+    }
+
+    // ─── APAGAR LANÇAMENTO ───────────────────────────────────────────────────
+
+    async function deleteTransaction(id) {
+      if (!confirm('Apagar este lançamento?')) return;
+      const { error } = await sb.from('transactions').delete().eq('id', id);
+      if (error) {
+        alert('Erro ao apagar: ' + error.message);
+      } else {
+        selectMonth(currentMonthId);
       }
     }
 
