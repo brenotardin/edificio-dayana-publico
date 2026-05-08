@@ -36,6 +36,9 @@
     </div>
   </nav>
 
+  <!-- QUADRO DE AVISOS (sempre visível, independente do mês) -->
+  <section id="noticeboard" class="max-w-3xl mx-auto px-4 pt-4"></section>
+
   <!-- CONTEÚDO PRINCIPAL -->
   <main class="max-w-3xl mx-auto px-4 py-6 space-y-4" id="mainContent">
     <div class="text-center text-gray-400 py-16">Carregando dados...</div>
@@ -94,6 +97,8 @@
                   onclick="showAdminTab('gasto')" id="tabGasto">Gasto / Entrada</button>
           <button class="admin-tab px-5 py-3 text-sm text-gray-400 hover:text-gray-700"
                   onclick="showAdminTab('saldo')" id="tabSaldo">Saldo</button>
+          <button class="admin-tab px-5 py-3 text-sm text-gray-400 hover:text-gray-700"
+                  onclick="showAdminTab('avisos')" id="tabAvisos">Avisos</button>
         </div>
 
         <!-- Formulário: Novo Mês -->
@@ -228,6 +233,33 @@
           <p id="txMsg" class="text-center text-xs hidden"></p>
         </div>
 
+        <!-- Formulário: Avisos -->
+        <div id="formAvisos" class="p-4 space-y-3 hidden">
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Título do aviso</label>
+            <input type="text" id="noticeTitle" placeholder="Ex: Reunião de condomínio dia 20"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Mensagem</label>
+            <textarea id="noticeContent" rows="4" placeholder="Escreva o aviso aqui..."
+                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none"></textarea>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="noticePinned" class="w-4 h-4 accent-gray-800">
+            <label for="noticePinned" class="text-sm text-gray-600">Fixar no topo (destaque)</label>
+          </div>
+          <button onclick="saveNotice()"
+                  class="w-full bg-gray-900 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-gray-700 transition-colors">
+            Publicar Aviso
+          </button>
+          <p id="noticeMsg" class="text-center text-xs hidden"></p>
+          <div class="pt-2">
+            <p class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">Avisos publicados</p>
+            <div id="noticeList"></div>
+          </div>
+        </div>
+
         <!-- Formulário: Saldo -->
         <div id="formSaldo" class="p-4 space-y-3 hidden">
           <div>
@@ -269,6 +301,7 @@
     let tipoLancamento = 'gasto';
     let adminExpanded = false;
     let isAdmin = false;
+    let editingNoticeId = null;
 
     function fmt(v) {
       return Number(v).toFixed(2).replace('.', ',');
@@ -297,6 +330,7 @@
       const { data: { session } } = await sb.auth.getSession();
       isAdmin = !!session;
       if (isAdmin) document.getElementById('adminPanel').classList.remove('hidden');
+      await loadNotices();
       renderTabs();
       if (months.length > 0) {
         await selectMonth(months[months.length - 1].id);
@@ -593,6 +627,7 @@
     function showAdminPanel() {
       isAdmin = true;
       document.getElementById('adminPanel').classList.remove('hidden');
+      loadNotices();
       if (currentMonthId) selectMonth(currentMonthId);
     }
 
@@ -609,13 +644,14 @@
       adminExpanded = false;
       document.getElementById('adminBody').classList.add('hidden');
       document.getElementById('btnExpand').textContent = '▲ Abrir';
+      await loadNotices();
       if (currentMonthId) selectMonth(currentMonthId);
     }
 
     // ─── ABAS DO PAINEL ──────────────────────────────────────────────────────
 
     function showAdminTab(tab) {
-      const tabs = ['mes', 'gasto', 'saldo'];
+      const tabs = ['mes', 'gasto', 'saldo', 'avisos'];
       tabs.forEach(t => {
         const formId = 'form' + t.charAt(0).toUpperCase() + t.slice(1);
         const tabId  = 'tab'  + t.charAt(0).toUpperCase() + t.slice(1);
@@ -628,6 +664,7 @@
       document.getElementById(activeForm).classList.remove('hidden');
       document.getElementById(activeTab).className =
         'admin-tab px-5 py-3 text-sm border-b-2 border-gray-900 font-semibold text-gray-900';
+      if (tab === 'avisos') loadNoticeAdmin();
     }
 
     // ─── SALVAR MÊS ──────────────────────────────────────────────────────────
@@ -766,6 +803,146 @@
         document.getElementById('saldoValue').value = '';
         document.getElementById('saldoNote').value = '';
         if (currentMonthId) selectMonth(currentMonthId);
+      }
+    }
+
+    // ─── AVISOS ──────────────────────────────────────────────────────────────
+
+    async function loadNotices() {
+      const el = document.getElementById('noticeboard');
+      const { data, error } = await sb
+        .from('notices')
+        .select('*')
+        .eq('active', true)
+        .order('pinned', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error || !data || data.length === 0) {
+        el.innerHTML = '';
+        return;
+      }
+
+      const cards = data.map(n => {
+        const pinnedBadge = n.pinned
+          ? '<span class="text-amber-500 text-xs font-bold mr-1.5">★ FIXADO &nbsp;·&nbsp;</span>'
+          : '';
+        const adminBtns = isAdmin
+          ? `<div class="flex gap-2 shrink-0 ml-3">
+               <button onclick="editNotice('${n.id}')" class="text-gray-300 hover:text-blue-500 transition-colors text-sm leading-none" title="Editar aviso">✎</button>
+               <button onclick="deleteNotice('${n.id}')" class="text-gray-300 hover:text-red-500 transition-colors text-base leading-none" title="Apagar aviso">✕</button>
+             </div>`
+          : '';
+        return `
+          <div class="bg-amber-50 border-l-4 ${n.pinned ? 'border-amber-400' : 'border-amber-200'} rounded-r-xl p-4">
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <p class="font-semibold text-gray-800 text-sm">${pinnedBadge}${n.title}</p>
+                <p class="text-gray-600 text-sm mt-1.5 whitespace-pre-wrap leading-relaxed">${n.content}</p>
+                <p class="text-gray-400 text-xs mt-2">${new Date(n.created_at).toLocaleDateString('pt-BR')}</p>
+              </div>
+              ${adminBtns}
+            </div>
+          </div>`;
+      }).join('');
+
+      el.innerHTML = `
+        <div class="space-y-3 pb-2">
+          <div class="flex items-center gap-2 px-1">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avisos do Síndico</span>
+            <div class="flex-1 h-px bg-gray-200"></div>
+          </div>
+          ${cards}
+        </div>`;
+    }
+
+    async function loadNoticeAdmin() {
+      const el = document.getElementById('noticeList');
+      const { data } = await sb
+        .from('notices')
+        .select('*')
+        .eq('active', true)
+        .order('pinned', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (!data || data.length === 0) {
+        el.innerHTML = '<p class="text-gray-400 text-sm italic text-center py-2">Nenhum aviso publicado.</p>';
+        return;
+      }
+
+      el.innerHTML = data.map(n => `
+        <div class="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2.5">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-700 truncate">${n.pinned ? '★ ' : ''}${n.title}</p>
+            <p class="text-xs text-gray-400">${new Date(n.created_at).toLocaleDateString('pt-BR')}</p>
+          </div>
+          <div class="flex gap-3 shrink-0">
+            <button onclick="editNotice('${n.id}')" class="text-gray-400 hover:text-blue-600 transition-colors text-sm" title="Editar">✎</button>
+            <button onclick="deleteNotice('${n.id}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Apagar">✕</button>
+          </div>
+        </div>`).join('');
+    }
+
+    async function saveNotice() {
+      const title   = document.getElementById('noticeTitle').value.trim();
+      const content = document.getElementById('noticeContent').value.trim();
+      const pinned  = document.getElementById('noticePinned').checked;
+      const msgEl   = document.getElementById('noticeMsg');
+      const btn     = document.querySelector('#formAvisos button[onclick="saveNotice()"]');
+
+      msgEl.className = 'text-center text-xs';
+      if (!title || !content) {
+        msgEl.textContent = 'Preencha o título e a mensagem.';
+        msgEl.classList.add('text-red-500');
+        msgEl.classList.remove('hidden');
+        return;
+      }
+
+      let error;
+      if (editingNoticeId) {
+        ({ error } = await sb.from('notices').update({ title, content, pinned }).eq('id', editingNoticeId));
+      } else {
+        ({ error } = await sb.from('notices').insert({ title, content, pinned, active: true }));
+      }
+
+      msgEl.classList.remove('hidden');
+      if (error) {
+        msgEl.textContent = 'Erro: ' + error.message;
+        msgEl.classList.add('text-red-500');
+      } else {
+        msgEl.textContent = editingNoticeId ? '✓ Aviso atualizado!' : '✓ Aviso publicado!';
+        msgEl.classList.add('text-green-600');
+        document.getElementById('noticeTitle').value = '';
+        document.getElementById('noticeContent').value = '';
+        document.getElementById('noticePinned').checked = false;
+        editingNoticeId = null;
+        btn.textContent = 'Publicar Aviso';
+        await loadNotices();
+        await loadNoticeAdmin();
+      }
+    }
+
+    async function editNotice(id) {
+      const { data } = await sb.from('notices').select('*').eq('id', id).single();
+      if (!data) return;
+      editingNoticeId = id;
+      document.getElementById('noticeTitle').value   = data.title;
+      document.getElementById('noticeContent').value = data.content;
+      document.getElementById('noticePinned').checked = data.pinned;
+      const btn = document.querySelector('#formAvisos button[onclick="saveNotice()"]');
+      btn.textContent = 'Salvar Alterações';
+      showAdminTab('avisos');
+      if (!adminExpanded) toggleAdminExpand();
+      document.getElementById('noticeTitle').focus();
+    }
+
+    async function deleteNotice(id) {
+      if (!confirm('Apagar este aviso?')) return;
+      const { error } = await sb.from('notices').delete().eq('id', id);
+      if (error) {
+        alert('Erro ao apagar: ' + error.message);
+      } else {
+        await loadNotices();
+        await loadNoticeAdmin();
       }
     }
 
