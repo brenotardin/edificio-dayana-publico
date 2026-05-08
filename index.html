@@ -147,16 +147,16 @@
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 block mb-2 uppercase tracking-wide font-semibold">Consumo de gás por apartamento (m³)</label>
+            <label class="text-xs text-gray-500 block mb-2 uppercase tracking-wide font-semibold">Diferença de leitura do gás — leitura atual − anterior (ex: 772)</label>
             <div class="grid grid-cols-2 gap-2">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-mono text-gray-600 w-8">101</span>
-                <input type="number" id="gas101" min="0" placeholder="m³"
+                <input type="number" id="gas101" min="0" placeholder="ex: 772"
                        class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-sm font-mono text-gray-600 w-8">201</span>
-                <input type="number" id="gas201" min="0" placeholder="m³"
+                <input type="number" id="gas201" min="0" placeholder="ex: 772"
                        class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               </div>
               <div class="flex items-center gap-2 opacity-40">
@@ -165,22 +165,22 @@
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-sm font-mono text-gray-600 w-8">301</span>
-                <input type="number" id="gas301" min="0" placeholder="m³"
+                <input type="number" id="gas301" min="0" placeholder="ex: 772"
                        class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-sm font-mono text-gray-600 w-8">302</span>
-                <input type="number" id="gas302" min="0" placeholder="m³"
+                <input type="number" id="gas302" min="0" placeholder="ex: 772"
                        class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-sm font-mono text-gray-600 w-8">401</span>
-                <input type="number" id="gas401" min="0" placeholder="m³"
+                <input type="number" id="gas401" min="0" placeholder="ex: 772"
                        class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               </div>
               <div class="flex items-center gap-2 col-span-2 sm:col-span-1">
                 <span class="text-sm font-mono text-gray-600 w-8">402</span>
-                <input type="number" id="gas402" min="0" placeholder="m³"
+                <input type="number" id="gas402" min="0" placeholder="ex: 772"
                        class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               </div>
             </div>
@@ -433,7 +433,7 @@
         const g = gasMap[apt];
         if (!g) return `<div class="py-2 border-b border-gray-50 text-sm text-gray-300 font-mono">${apt} – sem dados</div>`;
         return `<div class="flex justify-between items-center py-2 border-b border-gray-50 text-sm">
-                  <span class="text-gray-600 font-mono">${apt} – ${g.consumo} m³ × 2,5 × R$ 9,50</span>
+                  <span class="text-gray-600 font-mono">${apt} – ${(g.consumo/1000).toFixed(3).replace('.',',')} m³ × 2,5 × R$ 9,5</span>
                   <span class="font-semibold text-gray-800 ml-4">R$ ${fmt(g.valor_gas)}</span>
                 </div>`;
       }).join('');
@@ -1003,7 +1003,7 @@
         if (apt === '202') return `<p style="margin:0;font-family:'Courier New',monospace;">202------------------------------------------------</p>`;
         const g = gasMap[apt];
         if (!g) return `<p style="margin:0;font-family:'Courier New',monospace;">${apt} – sem dados</p>`;
-        return `<p style="margin:0;font-family:'Courier New',monospace;">${apt} – ${g.consumo} m³ x 2,5 x R$ 9,5 = <b>R$ ${fmt(g.valor_gas)}</b></p>`;
+        return `<p style="margin:0;font-family:'Courier New',monospace;">${apt} – ${(g.consumo/1000).toFixed(3).replace('.',',')} m³ x 2,5 x R$ 9,5 = <b>R$ ${fmt(g.valor_gas)}</b></p>`;
       }).join('');
 
       const aguaLine = agua === 0
