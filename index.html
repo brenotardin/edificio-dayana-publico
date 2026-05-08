@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edifício Dayana – Prestação de Contas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    html { scroll-behavior: smooth; }
+    ::-webkit-scrollbar { height: 4px; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans text-gray-800">
+
+  <!-- HEADER -->
+  <header class="bg-gray-900 text-white shadow-lg">
+    <div class="max-w-3xl mx-auto px-4 py-5 flex justify-between items-center">
+      <div>
+        <h1 class="text-xl font-bold tracking-wide">EDIFÍCIO DAYANA</h1>
+        <p class="text-gray-400 text-xs mt-0.5">Prestação de Contas do Condomínio</p>
+      </div>
+      <button id="btnAdmin" class="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded">
+        ⚙ Síndico
+      </button>
+    </div>
+  </header>
+
+  <!-- ABAS DE MÊS -->
+  <nav class="bg-white border-b shadow-sm sticky top-0 z-20">
+    <div class="max-w-3xl mx-auto px-4">
+      <div id="monthTabs" class="flex overflow-x-auto gap-0 py-0">
+        <div class="text-gray-400 text-sm py-3 px-4 italic">Carregando...</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="max-w-3xl mx-auto px-4 py-6 space-y-4" id="mainContent">
+    <div class="text-center text-gray-400 py-16">Carregando dados...</div>
+  </main>
+
+  <!-- MODAL LOGIN -->
+  <div id="modalLogin" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+      <h3 class="font-bold text-gray-800 mb-1">Área do Síndico</h3>
+      <p class="text-gray-400 text-sm mb-5">Acesso restrito — Breno (Apt 402)</p>
+      <input type="email" id="loginEmail" value="brenotsantana@gmail.com"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-gray-300"
+             placeholder="E-mail">
+      <input type="password" id="loginPassword"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gray-300"
+             placeholder="Senha" autocomplete="current-password">
+      <p id="loginError" class="text-red-500 text-xs mb-3 hidden">E-mail ou senha incorretos.</p>
+      <div class="flex gap-2">
+        <button id="btnLogin"
+                class="flex-1 bg-gray-900 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-gray-700 transition-colors">
+          Entrar
+        </button>
+        <button id="btnCancelLogin"
+                class="flex-1 border border-gray-200 rounded-lg py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAINEL DO SÍNDICO (GAVETA INFERIOR) -->
+  <div id="adminPanel" class="hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-2xl">
+    <div class="max-w-3xl mx-auto">
+      <!-- Cabeçalho da gaveta -->
+      <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
+        <span class="text-sm font-semibold text-gray-700">Painel do Síndico</span>
+        <div class="flex items-center gap-4">
+          <button onclick="toggleAdminExpand()" id="btnExpand"
+                  class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            ▲ Abrir
+          </button>
+          <button onclick="adminLogout()"
+                  class="text-xs text-red-400 hover:text-red-600">
+            Sair
+          </button>
+        </div>
+      </div>
+
+      <!-- Corpo expansível -->
+      <div id="adminBody" class="hidden overflow-y-auto" style="max-height: 70vh;">
+        <!-- Abas internas -->
+        <div class="flex border-b bg-white sticky top-0">
+          <button class="admin-tab px-5 py-3 text-sm border-b-2 border-gray-900 font-semibold text-gray-900"
+                  onclick="showAdminTab('mes')" id="tabMes">Novo Mês</button>
+          <button class="admin-tab px-5 py-3 text-sm text-gray-400 hover:text-gray-700"
+                  onclick="showAdminTab('gasto')" id="tabGasto">Gasto / Entrada</button>
+          <button class="admin-tab px-5 py-3 text-sm text-gray-400 hover:text-gray-700"
+                  onclick="showAdminTab('saldo')" id="tabSaldo">Saldo</button>
+        </div>
+
+        <!-- Formulário: Novo Mês -->
+        <div id="formMes" class="p-4 space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Mês</label>
+              <select id="newMonth" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                <option value="1">Janeiro</option>
+                <option value="2">Fevereiro</option>
+                <option value="3">Março</option>
+                <option value="4">Abril</option>
+                <option value="5">Maio</option>
+                <option value="6">Junho</option>
+                <option value="7">Julho</option>
+                <option value="8">Agosto</option>
+                <option value="9">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Ano</label>
+              <input type="number" id="newYear" value="2026"
+                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Data da leitura do gás</label>
+            <input type="date" id="newDataLeitura"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Água total (R$)</label>
+              <input type="number" id="newAgua" step="0.01" placeholder="0,00"
+                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Energia total (R$)</label>
+              <input type="number" id="newEnergia" step="0.01" placeholder="0,00"
+                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-500 block mb-2 uppercase tracking-wide font-semibold">Consumo de gás por apartamento (m³)</label>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-mono text-gray-600 w-8">101</span>
+                <input type="number" id="gas101" min="0" placeholder="m³"
+                       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-mono text-gray-600 w-8">201</span>
+                <input type="number" id="gas201" min="0" placeholder="m³"
+                       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+              </div>
+              <div class="flex items-center gap-2 opacity-40">
+                <span class="text-sm font-mono text-gray-600 w-8">202</span>
+                <div class="flex-1 bg-gray-50 border border-dashed border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-400 text-center">sem gás</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-mono text-gray-600 w-8">301</span>
+                <input type="number" id="gas301" min="0" placeholder="m³"
+                       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-mono text-gray-600 w-8">302</span>
+                <input type="number" id="gas302" min="0" placeholder="m³"
+                       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-mono text-gray-600 w-8">401</span>
+                <input type="number" id="gas401" min="0" placeholder="m³"
+                       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+              </div>
+              <div class="flex items-center gap-2 col-span-2 sm:col-span-1">
+                <span class="text-sm font-mono text-gray-600 w-8">402</span>
+                <input type="number" id="gas402" min="0" placeholder="m³"
+                       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveMonth()"
+                  class="w-full bg-gray-900 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-gray-700 transition-colors">
+            Salvar Mês
+          </button>
+          <p id="mesMsg" class="text-center text-xs hidden"></p>
+        </div>
+
+        <!-- Formulário: Gasto / Entrada -->
+        <div id="formGasto" class="p-4 space-y-3 hidden">
+          <div>
+            <label class="text-xs text-gray-500 block mb-2">Tipo de lançamento</label>
+            <div class="flex gap-2">
+              <button onclick="setTipo('gasto')" id="btnTipoGasto"
+                      class="flex-1 border-2 border-gray-900 text-gray-900 rounded-lg py-2 text-sm font-semibold">
+                Gasto
+              </button>
+              <button onclick="setTipo('entrada')" id="btnTipoEntrada"
+                      class="flex-1 border border-gray-200 rounded-lg py-2 text-sm text-gray-500 hover:border-gray-400">
+                Entrada
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Mês de referência</label>
+            <select id="txMonthId" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"></select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Data</label>
+            <input type="date" id="txDate"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Descrição</label>
+            <input type="text" id="txDesc" placeholder="Ex: Conserto da bomba d'água"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Valor (R$)</label>
+            <input type="number" id="txValue" step="0.01" placeholder="0,00"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <button onclick="saveTransaction()"
+                  class="w-full bg-gray-900 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-gray-700 transition-colors">
+            Salvar
+          </button>
+          <p id="txMsg" class="text-center text-xs hidden"></p>
+        </div>
+
+        <!-- Formulário: Saldo -->
+        <div id="formSaldo" class="p-4 space-y-3 hidden">
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Saldo atual em conta (R$)</label>
+            <input type="number" id="saldoValue" step="0.01" placeholder="0,00"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Observação (opcional)</label>
+            <input type="text" id="saldoNote" placeholder="Ex: Após pagamento da conta de água"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+          </div>
+          <button onclick="saveBalance()"
+                  class="w-full bg-gray-900 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-gray-700 transition-colors">
+            Atualizar Saldo
+          </button>
+          <p id="saldoMsg" class="text-center text-xs hidden"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://bgkgndbohpkvmvienqrs.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_cb5-BWO8mo2pJ6bmEptiRg_YPiWkMkb';
+    const { createClient } = supabase;
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const APTS = ['101', '201', '202', '301', '302', '401', '402'];
+    const FAXINA = 266.00;
+    const FUNDO = 25.00;
+    const N = 7;
+    const DESCONTO_AGUA = 70.00;
+    const MONTH_NAMES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+    let months = [];
+    let currentMonthId = null;
+    let tipoLancamento = 'gasto';
+    let adminExpanded = false;
+
+    function fmt(v) {
+      return Number(v).toFixed(2).replace('.', ',');
+    }
+    function num(v) {
+      return parseFloat(v) || 0;
+    }
+    function calcGas(consumo) {
+      return (consumo * 2.5 * 9.5) / 1000;
+    }
+
+    // ─── INICIALIZAÇÃO ───────────────────────────────────────────────────────
+
+    async function init() {
+      const { data, error } = await sb.from('months').select('*').order('year').order('month');
+      if (error) {
+        document.getElementById('mainContent').innerHTML =
+          '<div class="text-center text-red-400 py-16">Erro ao carregar dados. Tente recarregar a página.</div>';
+        return;
+      }
+      months = data || [];
+      renderTabs();
+      if (months.length > 0) {
+        await selectMonth(months[months.length - 1].id);
+      } else {
+        document.getElementById('mainContent').innerHTML =
+          '<div class="text-center text-gray-400 py-16 italic">Nenhum dado lançado ainda.</div>';
+      }
+      populateTxSelect();
+    }
+
+    // ─── ABAS DE MÊS ─────────────────────────────────────────────────────────
+
+    function renderTabs() {
+      const el = document.getElementById('monthTabs');
+      if (months.length === 0) {
+        el.innerHTML = '<div class="text-gray-400 text-sm py-3 px-4 italic">Sem meses cadastrados</div>';
+        return;
+      }
+      el.innerHTML = months.map(m =>
+        `<button onclick="selectMonth('${m.id}')" id="tab_${m.id}"
+                 class="whitespace-nowrap px-5 py-3 text-sm text-gray-400 hover:text-gray-700 border-b-2 border-transparent transition-colors">
+           ${m.month_name} ${m.year}
+         </button>`
+      ).join('');
+    }
+
+    async function selectMonth(id) {
+      currentMonthId = id;
+
+      document.querySelectorAll('[id^="tab_"]').forEach(t => {
+        t.className = 'whitespace-nowrap px-5 py-3 text-sm text-gray-400 hover:text-gray-700 border-b-2 border-transparent transition-colors';
+      });
+      const active = document.getElementById(`tab_${id}`);
+      if (active) {
+        active.className = 'whitespace-nowrap px-5 py-3 text-sm font-semibold text-gray-900 border-b-2 border-gray-900 transition-colors';
+        active.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+      }
+
+      document.getElementById('mainContent').innerHTML =
+        '<div class="text-center text-gray-300 py-16">Carregando...</div>';
+
+      const [gasRes, txRes, balRes] = await Promise.all([
+        sb.from('gas_readings').select('*').eq('month_id', id).order('apto'),
+        sb.from('transactions').select('*').eq('month_id', id).order('date'),
+        sb.from('bank_balance').select('*').order('created_at', { ascending: false }).limit(1)
+      ]);
+
+      const month = months.find(m => m.id === id);
+      render(month, gasRes.data || [], txRes.data || [], balRes.data || []);
+    }
+
+    // ─── RENDERIZAÇÃO ─────────────────────────────────────────────────────────
+
+    function render(month, gasData, transactions, balances) {
+      const agua = num(month.agua_total);
+      const energia = num(month.energia_total);
+
+      const aguaLiquida = agua === 0 ? 0 : agua - DESCONTO_AGUA;
+      const aguaApt = aguaLiquida / N;
+      const energiaApt = energia / N;
+      const faxinaApt = FAXINA / N;
+      const totalComum = aguaApt + energiaApt + faxinaApt + FUNDO;
+
+      const gasMap = {};
+      gasData.forEach(g => { gasMap[g.apto] = g; });
+
+      const dataLeitura = month.data_leitura
+        ? new Date(month.data_leitura + 'T12:00:00').toLocaleDateString('pt-BR')
+        : '—';
+
+      // Linhas do gás
+      const gasLines = APTS.map(apt => {
+        if (apt === '202') {
+          return `<div class="py-2 border-b border-gray-50 font-mono text-sm text-gray-400 tracking-wide">
+                    202 ─────────────────────────────────
+                  </div>`;
+        }
+        const g = gasMap[apt];
+        if (!g) return `<div class="py-2 border-b border-gray-50 text-sm text-gray-300 font-mono">${apt} – sem dados</div>`;
+        return `<div class="flex justify-between items-center py-2 border-b border-gray-50 text-sm">
+                  <span class="text-gray-600 font-mono">${apt} – ${g.consumo} m³ × 2,5 × R$ 9,50</span>
+                  <span class="font-semibold text-gray-800 ml-4">R$ ${fmt(g.valor_gas)}</span>
+                </div>`;
+      }).join('');
+
+      // Linha de água
+      let aguaHtml;
+      if (agua === 0) {
+        aguaHtml = `<div class="flex justify-between py-2 border-b border-gray-50 text-sm">
+                      <span class="text-gray-600">Água – R$ 0,00 ÷ 7</span>
+                      <span class="font-semibold">R$ 0,00/apt</span>
+                    </div>`;
+      } else {
+        aguaHtml = `<div class="py-2 border-b border-gray-50 text-sm">
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Água</span>
+                        <span class="font-semibold">R$ ${fmt(aguaApt)}/apt</span>
+                      </div>
+                      <span class="text-gray-400 text-xs">R$ ${fmt(agua)} – R$ 70,00 (aluguel) = R$ ${fmt(aguaLiquida)} ÷ 7</span>
+                    </div>`;
+      }
+
+      // Total por apt
+      const totalLines = APTS.map(apt => {
+        const g = gasMap[apt];
+        const gasVal = (apt === '202') ? 0 : (g ? num(g.valor_gas) : 0);
+        const total = totalComum + gasVal;
+        return `<div class="flex justify-between items-center py-2.5 border-b border-gray-50 last:border-0">
+                  <span class="font-mono text-gray-700 text-sm">Apt ${apt}</span>
+                  <span class="font-bold text-gray-900">R$ ${fmt(total)}</span>
+                </div>`;
+      }).join('');
+
+      // Gastos
+      const gastos = transactions.filter(t => t.type === 'gasto');
+      const entradas = transactions.filter(t => t.type === 'entrada');
+
+      const totalGastos = gastos.reduce((s, t) => s + num(t.value), 0);
+      const totalEntradas = entradas.reduce((s, t) => s + num(t.value), 0);
+
+      const gastosHtml = gastos.length === 0
+        ? '<p class="text-gray-400 text-sm italic py-2">Nenhum gasto registrado neste mês.</p>'
+        : gastos.map(t =>
+            `<div class="flex justify-between items-start py-2.5 border-b border-gray-50 last:border-0">
+               <div>
+                 <p class="text-sm text-gray-700">${t.description}</p>
+                 <p class="text-xs text-gray-400">${new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+               </div>
+               <span class="text-sm font-semibold text-red-500 ml-4 whitespace-nowrap">– R$ ${fmt(num(t.value))}</span>
+             </div>`
+          ).join('') +
+          (gastos.length > 1
+            ? `<div class="flex justify-between pt-2 text-sm font-bold text-gray-700">
+                 <span>Total gastos</span>
+                 <span class="text-red-600">– R$ ${fmt(totalGastos)}</span>
+               </div>`
+            : '');
+
+      const entradasHtml = entradas.length === 0
+        ? '<p class="text-gray-400 text-sm italic py-2">Nenhuma entrada registrada neste mês.</p>'
+        : entradas.map(t =>
+            `<div class="flex justify-between items-start py-2.5 border-b border-gray-50 last:border-0">
+               <div>
+                 <p class="text-sm text-gray-700">${t.description}</p>
+                 <p class="text-xs text-gray-400">${new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+               </div>
+               <span class="text-sm font-semibold text-green-600 ml-4 whitespace-nowrap">+ R$ ${fmt(num(t.value))}</span>
+             </div>`
+          ).join('') +
+          (entradas.length > 1
+            ? `<div class="flex justify-between pt-2 text-sm font-bold text-gray-700">
+                 <span>Total entradas</span>
+                 <span class="text-green-600">+ R$ ${fmt(totalEntradas)}</span>
+               </div>`
+            : '');
+
+      // Saldo
+      const saldoBal = balances[0];
+      const saldoHtml = saldoBal
+        ? `<p class="text-4xl font-bold text-gray-900 text-center py-3">R$ ${fmt(num(saldoBal.balance))}</p>
+           <p class="text-xs text-gray-400 text-center">Atualizado em ${new Date(saldoBal.created_at).toLocaleDateString('pt-BR')}</p>
+           ${saldoBal.note ? `<p class="text-sm text-gray-500 italic text-center mt-1">${saldoBal.note}</p>` : ''}`
+        : '<p class="text-gray-400 text-sm italic text-center py-4">Saldo não informado ainda.</p>';
+
+      document.getElementById('mainContent').innerHTML = `
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b bg-gray-50 flex justify-between items-center">
+            <h2 class="font-semibold text-gray-600 text-xs uppercase tracking-wider">Leitura do Gás</h2>
+            <span class="text-xs text-gray-400">Feita em ${dataLeitura}</span>
+          </div>
+          <div class="px-5 py-2">${gasLines}</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b bg-gray-50">
+            <h2 class="font-semibold text-gray-600 text-xs uppercase tracking-wider">Contas Gerais</h2>
+          </div>
+          <div class="px-5 py-2">
+            ${aguaHtml}
+            <div class="flex justify-between py-2 border-b border-gray-50 text-sm">
+              <span class="text-gray-600">Energia – R$ ${fmt(energia)} ÷ 7</span>
+              <span class="font-semibold">R$ ${fmt(energiaApt)}/apt</span>
+            </div>
+            <div class="flex justify-between py-2 border-b border-gray-50 text-sm">
+              <span class="text-gray-600">Faxina – R$ 266,00 ÷ 7</span>
+              <span class="font-semibold">R$ ${fmt(faxinaApt)}/apt</span>
+            </div>
+            <div class="flex justify-between py-2 border-b border-gray-50 text-sm">
+              <span class="text-gray-600">Fundo de Reserva</span>
+              <span class="font-semibold">R$ ${fmt(FUNDO)}/apt</span>
+            </div>
+            <div class="flex justify-between py-2.5 text-sm font-bold text-gray-900">
+              <span>Total Comum</span>
+              <span>R$ ${fmt(totalComum)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b bg-gray-50">
+            <h2 class="font-semibold text-gray-600 text-xs uppercase tracking-wider">Total por Apartamento</h2>
+            <p class="text-gray-400 text-xs mt-0.5">Total comum + gás individual</p>
+          </div>
+          <div class="px-5 py-1">${totalLines}</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b bg-gray-50">
+            <h2 class="font-semibold text-gray-600 text-xs uppercase tracking-wider">Gastos do Mês</h2>
+          </div>
+          <div class="px-5 py-2">${gastosHtml}</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b bg-gray-50">
+            <h2 class="font-semibold text-gray-600 text-xs uppercase tracking-wider">Entradas do Mês</h2>
+          </div>
+          <div class="px-5 py-2">${entradasHtml}</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b bg-gray-50">
+            <h2 class="font-semibold text-gray-600 text-xs uppercase tracking-wider">Saldo em Conta</h2>
+          </div>
+          <div class="px-5 py-4">${saldoHtml}</div>
+        </div>
+
+        <p class="text-center text-gray-400 text-xs pb-6">
+          Edifício Dayana · Síndico: Breno (Apt 402) · (027) 99939-7717
+        </p>
+      `;
+    }
+
+    // ─── AUTH ─────────────────────────────────────────────────────────────────
+
+    document.getElementById('btnAdmin').addEventListener('click', async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        showAdminPanel();
+      } else {
+        document.getElementById('modalLogin').classList.remove('hidden');
+        setTimeout(() => document.getElementById('loginPassword').focus(), 100);
+      }
+    });
+
+    document.getElementById('btnCancelLogin').addEventListener('click', () => {
+      document.getElementById('modalLogin').classList.add('hidden');
+    });
+
+    document.getElementById('loginPassword').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btnLogin').click();
+    });
+
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('btnLogin');
+      const errEl = document.getElementById('loginError');
+
+      btn.textContent = 'Entrando...';
+      btn.disabled = true;
+      errEl.classList.add('hidden');
+
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+
+      btn.textContent = 'Entrar';
+      btn.disabled = false;
+
+      if (error) {
+        errEl.classList.remove('hidden');
+      } else {
+        document.getElementById('modalLogin').classList.add('hidden');
+        document.getElementById('loginPassword').value = '';
+        showAdminPanel();
+      }
+    });
+
+    function showAdminPanel() {
+      document.getElementById('adminPanel').classList.remove('hidden');
+    }
+
+    function toggleAdminExpand() {
+      adminExpanded = !adminExpanded;
+      document.getElementById('adminBody').classList.toggle('hidden', !adminExpanded);
+      document.getElementById('btnExpand').textContent = adminExpanded ? '▼ Fechar' : '▲ Abrir';
+    }
+
+    async function adminLogout() {
+      await sb.auth.signOut();
+      document.getElementById('adminPanel').classList.add('hidden');
+      adminExpanded = false;
+      document.getElementById('adminBody').classList.add('hidden');
+      document.getElementById('btnExpand').textContent = '▲ Abrir';
+    }
+
+    // ─── ABAS DO PAINEL ──────────────────────────────────────────────────────
+
+    function showAdminTab(tab) {
+      const tabs = ['mes', 'gasto', 'saldo'];
+      tabs.forEach(t => {
+        const formId = 'form' + t.charAt(0).toUpperCase() + t.slice(1);
+        const tabId  = 'tab'  + t.charAt(0).toUpperCase() + t.slice(1);
+        document.getElementById(formId).classList.add('hidden');
+        document.getElementById(tabId).className =
+          'admin-tab px-5 py-3 text-sm text-gray-400 hover:text-gray-700';
+      });
+      const activeForm = 'form' + tab.charAt(0).toUpperCase() + tab.slice(1);
+      const activeTab  = 'tab'  + tab.charAt(0).toUpperCase() + tab.slice(1);
+      document.getElementById(activeForm).classList.remove('hidden');
+      document.getElementById(activeTab).className =
+        'admin-tab px-5 py-3 text-sm border-b-2 border-gray-900 font-semibold text-gray-900';
+    }
+
+    // ─── SALVAR MÊS ──────────────────────────────────────────────────────────
+
+    async function saveMonth() {
+      const monthNum   = parseInt(document.getElementById('newMonth').value);
+      const year       = parseInt(document.getElementById('newYear').value);
+      const dataLeitura = document.getElementById('newDataLeitura').value;
+      const agua       = num(document.getElementById('newAgua').value);
+      const energia    = num(document.getElementById('newEnergia').value);
+      const msgEl      = document.getElementById('mesMsg');
+
+      msgEl.className = 'text-center text-xs';
+      msgEl.classList.remove('hidden');
+      msgEl.textContent = 'Salvando...';
+
+      const { data: monthData, error: monthErr } = await sb
+        .from('months')
+        .upsert({
+          year, month: monthNum,
+          month_name: MONTH_NAMES[monthNum],
+          data_leitura: dataLeitura || null,
+          agua_total: agua,
+          energia_total: energia
+        }, { onConflict: 'year,month' })
+        .select()
+        .single();
+
+      if (monthErr) {
+        msgEl.textContent = 'Erro: ' + monthErr.message;
+        msgEl.classList.add('text-red-500');
+        return;
+      }
+
+      // Remove leituras antigas e insere novas
+      await sb.from('gas_readings').delete().eq('month_id', monthData.id);
+
+      const gasApts = ['101', '201', '301', '302', '401', '402'];
+      const entries = gasApts.map(apt => ({
+        month_id:  monthData.id,
+        apto:      apt,
+        consumo:   parseInt(document.getElementById('gas' + apt).value) || 0,
+        valor_gas: calcGas(parseInt(document.getElementById('gas' + apt).value) || 0)
+      }));
+
+      const { error: gasErr } = await sb.from('gas_readings').insert(entries);
+
+      if (gasErr) {
+        msgEl.textContent = 'Erro no gás: ' + gasErr.message;
+        msgEl.classList.add('text-red-500');
+        return;
+      }
+
+      msgEl.textContent = '✓ Mês salvo com sucesso!';
+      msgEl.classList.add('text-green-600');
+
+      await init();
+      selectMonth(monthData.id);
+      populateTxSelect();
+    }
+
+    // ─── SALVAR GASTO/ENTRADA ────────────────────────────────────────────────
+
+    function setTipo(tipo) {
+      tipoLancamento = tipo;
+      const gBtn = document.getElementById('btnTipoGasto');
+      const eBtn = document.getElementById('btnTipoEntrada');
+      const ativo = 'flex-1 border-2 border-gray-900 text-gray-900 rounded-lg py-2 text-sm font-semibold';
+      const inativo = 'flex-1 border border-gray-200 rounded-lg py-2 text-sm text-gray-500 hover:border-gray-400';
+      gBtn.className = tipo === 'gasto' ? ativo : inativo;
+      eBtn.className = tipo === 'entrada' ? ativo : inativo;
+    }
+
+    function populateTxSelect() {
+      const sel = document.getElementById('txMonthId');
+      sel.innerHTML = [...months].reverse().map(m =>
+        `<option value="${m.id}">${m.month_name} ${m.year}</option>`
+      ).join('');
+      if (currentMonthId) sel.value = currentMonthId;
+    }
+
+    async function saveTransaction() {
+      const monthId = document.getElementById('txMonthId').value;
+      const date    = document.getElementById('txDate').value;
+      const desc    = document.getElementById('txDesc').value.trim();
+      const value   = num(document.getElementById('txValue').value);
+      const msgEl   = document.getElementById('txMsg');
+
+      msgEl.className = 'text-center text-xs';
+      if (!date || !desc || !value) {
+        msgEl.textContent = 'Preencha todos os campos.';
+        msgEl.classList.add('text-red-500');
+        msgEl.classList.remove('hidden');
+        return;
+      }
+
+      const { error } = await sb.from('transactions').insert({
+        month_id: monthId, date, description: desc, value, type: tipoLancamento
+      });
+
+      msgEl.classList.remove('hidden');
+      if (error) {
+        msgEl.textContent = 'Erro: ' + error.message;
+        msgEl.classList.add('text-red-500');
+      } else {
+        msgEl.textContent = '✓ Lançamento salvo!';
+        msgEl.classList.add('text-green-600');
+        document.getElementById('txDesc').value = '';
+        document.getElementById('txValue').value = '';
+        if (currentMonthId) selectMonth(currentMonthId);
+      }
+    }
+
+    // ─── SALVAR SALDO ────────────────────────────────────────────────────────
+
+    async function saveBalance() {
+      const balance = num(document.getElementById('saldoValue').value);
+      const note    = document.getElementById('saldoNote').value.trim();
+      const msgEl   = document.getElementById('saldoMsg');
+
+      msgEl.className = 'text-center text-xs';
+
+      const { error } = await sb.from('bank_balance').insert({
+        date: new Date().toISOString().split('T')[0],
+        balance,
+        note: note || null
+      });
+
+      msgEl.classList.remove('hidden');
+      if (error) {
+        msgEl.textContent = 'Erro: ' + error.message;
+        msgEl.classList.add('text-red-500');
+      } else {
+        msgEl.textContent = '✓ Saldo atualizado!';
+        msgEl.classList.add('text-green-600');
+        document.getElementById('saldoValue').value = '';
+        document.getElementById('saldoNote').value = '';
+        if (currentMonthId) selectMonth(currentMonthId);
+      }
+    }
+
+    // ─── START ───────────────────────────────────────────────────────────────
+    init();
+  </script>
+</body>
+</html>
